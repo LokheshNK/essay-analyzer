@@ -73,68 +73,57 @@ def get_topic():
     topic = random.choice(topics)
     return jsonify({'topic': topic})
 
+# ... (keep everything at the top the same: imports, app, client, topics list, routes / and /get_topic)
+
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    essay = request.json.get('essay')
+    data = request.json
+    essay = data.get('essay')
+    topic = data.get('topic', '')  # Get the current topic from frontend
+
     if not essay:
         return jsonify({'error': 'No essay provided'}), 400
     
-    # Enhanced prompt for structured JSON output with ratings, pros/cons, etc.
+    # Build prompt with topic for better relevance checking
     prompt = (
-        "Analyze this student essay in detail. Output ONLY valid JSON with these exact keys:\n"
+        "Analyze this student essay in detail. The essay topic is: \"{topic}\"\n\n"
+        "Output ONLY valid JSON with these exact keys:\n"
         "{\n"
-        "  'ratings': {  // Scores out of 10 for each category\n"
+        "  'ratings': {\n"
         "    'grammar': number,\n"
         "    'structure': number,\n"
         "    'content': number,\n"
         "    'coherence': number,\n"
         "    'originality': number,\n"
-        "    'overall': number  // Average or overall score\n"
+        "    'topic_relevance': number,  // NEW: How well the essay stays on/sticks to the given topic (0-10)\n"
+        "    'overall': number\n"
         "  },\n"
-        "  'strengths': [  // Array of 3-7 bullet point strings for pros\n"
-        "    'Strength 1',\n"
-        "    'Strength 2',\n"
-        "    ...\n"
-        "  ],\n"
-        "  'weaknesses': [  // Array of 3-7 bullet point strings for cons\n"
-        "    'Weakness 1',\n"
-        "    'Weakness 2',\n"
-        "    ...\n"
-        "  ],\n"
-        "  'detailed_comments': {  // Object with category keys and comment strings\n"
-        "    'grammar': 'Detailed comments...',\n"
-        "    'structure': 'Detailed comments...',\n"
-        "    'content': 'Detailed comments...',\n"
-        "    'coherence': 'Detailed comments...',\n"
-        "    'originality': 'Detailed comments...'\n"
+        "  'strengths': [ /* 3-7 bullet points */ ],\n"
+        "  'weaknesses': [ /* 3-7 bullet points */ ],\n"
+        "  'detailed_comments': {\n"
+        "    'grammar': 'string',\n"
+        "    'structure': 'string',\n"
+        "    'content': 'string',\n"
+        "    'coherence': 'string',\n"
+        "    'originality': 'string',\n"
+        "    'topic_relevance': 'Detailed feedback on how well the essay addresses the topic'\n"
         "  },\n"
-        "  'suggestions': [  // Array of 4-6 numbered suggestion strings\n"
-        "    '1. Suggestion one...',\n"
-        "    '2. Suggestion two...',\n"
-        "    ...\n"
-        "  ],\n"
-        "  'word_count_feedback': 'Feedback on essay length and density...',\n"
-        "  'key_insights': [  // Array of 2-4 insightful takeaways\n"
-        "    'Insight 1',\n"
-        "    'Insight 2',\n"
-        "    ...\n"
-        "  ]\n"
+        "  'suggestions': [ /* 4-6 strings */ ],\n"
+        "  'word_count_feedback': 'string',\n"
+        "  'key_insights': [ /* 2-4 strings */ ]\n"
         "}\n\n"
         "Essay:\n" + essay
-    )
-    
+    ).format(topic=topic)  # Inject the actual topic
+
     try:
         response = client.models.generate_content(
-    model="gemini-2.5-flash",  # Recommended: stable, fast, excellent for essay analysis
-    # Or try the newest: "gemini-3-flash-preview" (if available in your region/account)
-    contents=prompt
-)
-        # Clean up response (Gemini might add extra text; strip to valid JSON)
+            model="gemini-2.5-flash",  # Stable & fast
+            contents=prompt
+        )
         analysis_json = response.text.strip()
         if analysis_json.startswith('```json'):
-            analysis_json = analysis_json[7:-3].strip()  # Remove code block if present
-        
-        # Return as JSON for easy parsing in JS
+            analysis_json = analysis_json[7:-3].strip()
+
         return jsonify({'analysis': analysis_json})
     except Exception as e:
         return jsonify({'analysis': f"Error from Gemini API: {str(e)}"})
