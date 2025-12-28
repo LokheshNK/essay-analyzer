@@ -125,7 +125,7 @@ def analyze():
     
     try:
         response = client.models.generate_content(
-            model="gemini-3-flash-preview",  # Newest fast model (Dec 2025)
+            model="gemini-2.5-flash",  # Newest fast model (Dec 2025)
             # Fallback: "gemini-2.5-flash" if preview not available
             contents=prompt
         )
