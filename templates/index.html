@@ -1,0 +1,313 @@
+<!-- templates/index.html (updated with Chart.js for pie/bar charts, table rendering) -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Essay Analyzer</title>
+    <!-- Add Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+        }
+        #topic {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        #essay {
+            width: 100%;
+            height: 300px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1em;
+            resize: vertical;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #status {
+            margin: 10px 0;
+            font-size: 1em;
+        }
+        #analysis {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        canvas {
+            max-width: 400px;
+            margin: 20px auto;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Essay Analyzer</h1>
+        <button id="getTopicBtn">Get Random Topic</button>
+        <div id="topic">Your essay topic will appear here.</div>
+        <textarea id="essay" placeholder="Write your essay here..."></textarea>
+        <div class="controls">
+            <button id="startTimerBtn">Start Timer</button>
+            <button id="analyzeBtn">Analyze Essay</button>
+        </div>
+        <div id="status">
+            Word Count: <span id="wordCount">0</span> | Time: <span id="timer">00:00</span>
+        </div>
+        <div id="analysis"></div>
+    </div>
+<script>
+    const getTopicBtn = document.getElementById('getTopicBtn');
+    const topicDiv = document.getElementById('topic');
+    const essayTextarea = document.getElementById('essay');
+    const startTimerBtn = document.getElementById('startTimerBtn');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const wordCountSpan = document.getElementById('wordCount');
+    const timerSpan = document.getElementById('timer');
+    const analysisDiv = document.getElementById('analysis');
+
+    let timerInterval;
+    let totalSeconds = 20 * 60;  // 20 minutes
+    let isTimerRunning = false;
+
+    // Update timer display
+    function updateTimerDisplay() {
+        const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+        const secs = (totalSeconds % 60).toString().padStart(2, '0');
+        timerSpan.textContent = `${mins}:${secs}`;
+
+        // Visual warning: red when < 2 minutes left
+        if (totalSeconds <= 120) {
+            timerSpan.style.color = 'red';
+            timerSpan.style.fontWeight = 'bold';
+        } else {
+            timerSpan.style.color = '';
+            timerSpan.style.fontWeight = '';
+        }
+    }
+
+    // Start countdown
+    function startTimer() {
+        if (isTimerRunning) return;
+        isTimerRunning = true;
+        timerInterval = setInterval(() => {
+            totalSeconds--;
+            updateTimerDisplay();
+            if (totalSeconds <= 0) {
+                clearInterval(timerInterval);
+                isTimerRunning = false;
+                timerSpan.textContent = "Time's Up!";
+                timerSpan.style.color = 'darkred';
+            }
+        }, 1000);
+    }
+
+    // Stop timer (used when analyzing)
+    function stopTimer() {
+        clearInterval(timerInterval);
+        isTimerRunning = false;
+    }
+
+    // Initial display
+    updateTimerDisplay();
+
+    // Get random topic
+    getTopicBtn.addEventListener('click', async () => {
+        const response = await fetch('/get_topic');
+        const data = await response.json();
+        topicDiv.textContent = data.topic;
+    });
+
+    // Real-time word count
+    essayTextarea.addEventListener('input', () => {
+        const text = essayTextarea.value.trim();
+        const words = text ? text.split(/\s+/).length : 0;
+        wordCountSpan.textContent = words;
+
+        // Auto-start timer on first keystroke
+        if (words === 1 && !isTimerRunning && totalSeconds === 20 * 60) {
+            startTimer();
+        }
+    });
+
+    // Analyze essay - now stops timer automatically
+    analyzeBtn.addEventListener('click', async () => {
+        const essay = essayTextarea.value.trim();
+        if (!essay) {
+            alert('Please write an essay first!');
+            return;
+        }
+
+        // Stop the timer when analyzing
+        stopTimer();
+
+        analysisDiv.innerHTML = 'Analyzing your essay with Gemini AI...';
+        const response = await fetch('/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ essay })
+        });
+        const data = await response.json();
+
+        if (data.error) {
+            analysisDiv.textContent = data.error;
+        } else {
+            try {
+                const analysis = JSON.parse(data.analysis);
+                renderAnalysis(analysis);
+            } catch (e) {
+                analysisDiv.innerHTML = '<pre>Error parsing analysis:\n' + e.message + '\n\nRaw output:\n' + data.analysis + '</pre>';
+            }
+        }
+    });
+
+    // Keep your renderAnalysis function exactly as before (no change needed)
+    function renderAnalysis(analysis) {
+        analysisDiv.innerHTML = '';  // Clear
+
+        const overall = document.createElement('h2');
+        overall.textContent = `Overall Score: ${analysis.ratings.overall}/10`;
+        analysisDiv.appendChild(overall);
+
+        const table = document.createElement('table');
+        table.innerHTML = `<tr><th>Strengths (Pros)</th><th>Weaknesses (Cons)</th></tr>`;
+        const maxLen = Math.max(analysis.strengths.length, analysis.weaknesses.length);
+        for (let i = 0; i < maxLen; i++) {
+            const row = document.createElement('tr');
+            row.innerHTML = `<td>${analysis.strengths[i] || ''}</td><td>${analysis.weaknesses[i] || ''}</td>`;
+            table.appendChild(row);
+        }
+        analysisDiv.appendChild(table);
+
+        // Pie Chart
+        const pieCanvas = document.createElement('canvas');
+        pieCanvas.id = 'ratingsPieChart';
+        analysisDiv.appendChild(pieCanvas);
+        new Chart(pieCanvas.getContext('2d'), {
+            type: 'pie',
+            data: {
+                labels: ['Grammar', 'Structure', 'Content', 'Coherence', 'Originality'],
+                datasets: [{
+                    data: [
+                        analysis.ratings.grammar,
+                        analysis.ratings.structure,
+                        analysis.ratings.content,
+                        analysis.ratings.coherence,
+                        analysis.ratings.originality
+                    ],
+                    backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF']
+                }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'top' } } }
+        });
+
+        // Bar Chart
+        const barCanvas = document.createElement('canvas');
+        barCanvas.id = 'ratingsBarChart';
+        analysisDiv.appendChild(barCanvas);
+        new Chart(barCanvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Grammar', 'Structure', 'Content', 'Coherence', 'Originality', 'Overall'],
+                datasets: [{
+                    label: 'Score /10',
+                    data: [
+                        analysis.ratings.grammar,
+                        analysis.ratings.structure,
+                        analysis.ratings.content,
+                        analysis.ratings.coherence,
+                        analysis.ratings.originality,
+                        analysis.ratings.overall
+                    ],
+                    backgroundColor: '#4CAF50'
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true, max: 10 } }
+            }
+        });
+
+        // Detailed Comments, Suggestions, etc. (same as before)
+        const commentsSection = document.createElement('div');
+        commentsSection.innerHTML = '<h3>Detailed Comments</h3>';
+        for (const [category, comment] of Object.entries(analysis.detailed_comments)) {
+            commentsSection.innerHTML += `<p><strong>${category.charAt(0).toUpperCase() + category.slice(1)}:</strong> ${comment}</p>`;
+        }
+        analysisDiv.appendChild(commentsSection);
+
+        const suggestions = document.createElement('ol');
+        suggestions.innerHTML = '<h3>Suggestions for Improvement</h3>';
+        analysis.suggestions.forEach(sug => {
+            const li = document.createElement('li');
+            li.textContent = sug.replace(/^\d+\.\s*/, '');
+            suggestions.appendChild(li);
+        });
+        analysisDiv.appendChild(suggestions);
+
+        const wcFeedback = document.createElement('p');
+        wcFeedback.innerHTML = `<h3>Word Count Feedback</h3>${analysis.word_count_feedback}`;
+        analysisDiv.appendChild(wcFeedback);
+
+        const insights = document.createElement('ul');
+        insights.innerHTML = '<h3>Key Insights</h3>';
+        analysis.key_insights.forEach(insight => {
+            const li = document.createElement('li');
+            li.textContent = insight;
+            insights.appendChild(li);
+        });
+        analysisDiv.appendChild(insights);
+    }
+</script>
+</body>
+</html>
