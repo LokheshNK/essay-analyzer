@@ -125,10 +125,10 @@ def analyze():
     
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",  # Newest fast model (Dec 2025)
-            # Fallback: "gemini-2.5-flash" if preview not available
-            contents=prompt
-        )
+    model="gemini-2.5-flash",  # Recommended: stable, fast, excellent for essay analysis
+    # Or try the newest: "gemini-3-flash-preview" (if available in your region/account)
+    contents=prompt
+)
         # Clean up response (Gemini might add extra text; strip to valid JSON)
         analysis_json = response.text.strip()
         if analysis_json.startswith('```json'):
