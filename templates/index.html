@@ -1,11 +1,10 @@
-<!-- templates/index.html (updated with Chart.js for pie/bar charts, table rendering) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Essay Analyzer</title>
-    <!-- Add Chart.js CDN -->
+    <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
@@ -32,6 +31,7 @@
             font-weight: bold;
             margin-bottom: 20px;
             text-align: center;
+            min-height: 1.5em;
         }
         #essay {
             width: 100%;
@@ -45,7 +45,7 @@
         .controls {
             display: flex;
             justify-content: space-between;
-            margin: 10px 0;
+            margin: 15px 0;
         }
         button {
             padding: 10px 20px;
@@ -61,7 +61,8 @@
         }
         #status {
             margin: 10px 0;
-            font-size: 1em;
+            font-size: 1.1em;
+            font-weight: bold;
         }
         #analysis {
             margin-top: 20px;
@@ -69,7 +70,6 @@
             background-color: #f9f9f9;
             border: 1px solid #ddd;
             border-radius: 4px;
-            white-space: pre-wrap;
         }
         table {
             width: 100%;
@@ -78,16 +78,21 @@
         }
         th, td {
             border: 1px solid #ddd;
-            padding: 8px;
+            padding: 10px;
             text-align: left;
+            vertical-align: top;
         }
         th {
             background-color: #f2f2f2;
+            width: 50%;
         }
         canvas {
-            max-width: 400px;
-            margin: 20px auto;
+            max-width: 450px;
+            margin: 30px auto;
             display: block;
+        }
+        h2, h3 {
+            color: #4CAF50;
         }
     </style>
 </head>
@@ -102,10 +107,11 @@
             <button id="analyzeBtn">Analyze Essay</button>
         </div>
         <div id="status">
-            Word Count: <span id="wordCount">0</span> | Time: <span id="timer">00:00</span>
+            Word Count: <span id="wordCount">0</span> | Time: <span id="timer">20:00</span>
         </div>
         <div id="analysis"></div>
     </div>
+
     <script>
         const getTopicBtn = document.getElementById('getTopicBtn');
         const topicDiv = document.getElementById('topic');
@@ -115,16 +121,16 @@
         const wordCountSpan = document.getElementById('wordCount');
         const timerSpan = document.getElementById('timer');
         const analysisDiv = document.getElementById('analysis');
-    
+
         let timerInterval;
         let totalSeconds = 20 * 60; // 20 minutes
         let isTimerRunning = false;
-    
-        // Update timer display
+
         function updateTimerDisplay() {
             const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
             const secs = (totalSeconds % 60).toString().padStart(2, '0');
             timerSpan.textContent = `${mins}:${secs}`;
+
             if (totalSeconds <= 120) {
                 timerSpan.style.color = 'red';
                 timerSpan.style.fontWeight = 'bold';
@@ -133,7 +139,7 @@
                 timerSpan.style.fontWeight = '';
             }
         }
-    
+
         function startTimer() {
             if (isTimerRunning) return;
             isTimerRunning = true;
@@ -148,87 +154,102 @@
                 }
             }, 1000);
         }
-    
+
         function stopTimer() {
             clearInterval(timerInterval);
             isTimerRunning = false;
         }
-    
+
         updateTimerDisplay();
-    
+
         // Get random topic
         getTopicBtn.addEventListener('click', async () => {
             const response = await fetch('/get_topic');
             const data = await response.json();
             topicDiv.textContent = data.topic;
         });
-    
-        // Real-time word count + auto-start timer
+
+        // Real-time word count + auto-start timer on first word
         essayTextarea.addEventListener('input', () => {
             const text = essayTextarea.value.trim();
             const words = text ? text.split(/\s+/).length : 0;
             wordCountSpan.textContent = words;
+
             if (words === 1 && !isTimerRunning && totalSeconds === 20 * 60) {
                 startTimer();
             }
         });
-    
-        // Analyze essay — sends both essay and current topic
+
+        // Analyze essay — sends topic and essay
         analyzeBtn.addEventListener('click', async () => {
             const essay = essayTextarea.value.trim();
-            const topic = topicDiv.textContent.trim();
-    
+            const topic = topicDiv.textContent.trim() || "No topic selected";
+
             if (!essay) {
                 alert('Please write an essay first!');
                 return;
             }
-    
+
             stopTimer();
-            analysisDiv.innerHTML = 'Analyzing your essay with Gemini AI...';
-    
-            const response = await fetch('/analyze', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ essay: essay, topic: topic })
-            });
-    
-            const data = await response.json();
-    
-            if (data.error) {
-                analysisDiv.textContent = data.error;
-            } else {
-                try {
-                    const analysis = JSON.parse(data.analysis);
-                    renderAnalysis(analysis);
-                } catch (e) {
-                    analysisDiv.innerHTML = '<pre>Error parsing analysis:\n' + e.message + '\n\nRaw output:\n' + data.analysis + '</pre>';
+            analysisDiv.innerHTML = '<p style="text-align:center; font-style:italic;">Analyzing your essay with Gemini AI...</p>';
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ essay, topic })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    analysisDiv.innerHTML = `<p style="color:red;">Error: ${data.error}</p>`;
+                } else {
+                    try {
+                        const analysis = JSON.parse(data.analysis);
+                        renderAnalysis(analysis);
+                    } catch (e) {
+                        analysisDiv.innerHTML = `
+                            <h3 style="color:red;">Analysis Parsing Error</h3>
+                            <pre style="background:#fff; padding:10px; border:1px solid #ccc;">
+${e.message}
+
+Raw output:
+${data.analysis}
+                            </pre>`;
+                    }
                 }
+            } catch (err) {
+                analysisDiv.innerHTML = `<p style="color:red;">Network error: ${err.message}</p>`;
             }
         });
-    
-        // Updated renderAnalysis with Topic Relevance
+
+        // Render full analysis with Topic Relevance
         function renderAnalysis(analysis) {
             analysisDiv.innerHTML = '';
-    
+
             // Overall Score
             const overall = document.createElement('h2');
             overall.textContent = `Overall Score: ${analysis.ratings.overall}/10`;
+            overall.style.textAlign = 'center';
             analysisDiv.appendChild(overall);
-    
+
             // Strengths vs Weaknesses Table
             const table = document.createElement('table');
             table.innerHTML = `<tr><th>Strengths (Pros)</th><th>Weaknesses (Cons)</th></tr>`;
             const maxLen = Math.max(analysis.strengths.length, analysis.weaknesses.length);
             for (let i = 0; i < maxLen; i++) {
                 const row = document.createElement('tr');
-                row.innerHTML = `<td>${analysis.strengths[i] || ''}</td><td>${analysis.weaknesses[i] || ''}</td>`;
+                row.innerHTML = `
+                    <td>${analysis.strengths[i] || ''}</td>
+                    <td>${analysis.weaknesses[i] || ''}</td>
+                `;
                 table.appendChild(row);
             }
             analysisDiv.appendChild(table);
-    
-            // Pie Chart — Now includes Topic Relevance
+
+            // Pie Chart
             const pieCanvas = document.createElement('canvas');
-            pieCanvas.id = 'ratingsPieChart';
             analysisDiv.appendChild(pieCanvas);
             new Chart(pieCanvas.getContext('2d'), {
                 type: 'pie',
@@ -248,20 +269,22 @@
                 },
                 options: {
                     responsive: true,
-                    plugins: { legend: { position: 'top' } }
+                    plugins: {
+                        legend: { position: 'top' },
+                        title: { display: true, text: 'Category Scores' }
+                    }
                 }
             });
-    
-            // Bar Chart — Updated with Topic Relevance
+
+            // Bar Chart
             const barCanvas = document.createElement('canvas');
-            barCanvas.id = 'ratingsBarChart';
             analysisDiv.appendChild(barCanvas);
             new Chart(barCanvas.getContext('2d'), {
                 type: 'bar',
                 data: {
                     labels: ['Grammar', 'Structure', 'Content', 'Coherence', 'Originality', 'Topic Rel.', 'Overall'],
                     datasets: [{
-                        label: 'Score /10',
+                        label: 'Score out of 10',
                         data: [
                             analysis.ratings.grammar,
                             analysis.ratings.structure,
@@ -271,24 +294,31 @@
                             analysis.ratings.topic_relevance,
                             analysis.ratings.overall
                         ],
-                        backgroundColor: '#4CAF50'
+                        backgroundColor: '#4CAF50',
+                        borderColor: '#388E3C',
+                        borderWidth: 1
                     }]
                 },
                 options: {
                     responsive: true,
-                    scales: { y: { beginAtZero: true, max: 10 } }
+                    scales: {
+                        y: { beginAtZero: true, max: 10 }
+                    },
+                    plugins: {
+                        title: { display: true, text: 'Detailed Score Breakdown' }
+                    }
                 }
             });
-    
-            // Detailed Comments (includes Topic Relevance)
+
+            // Detailed Comments
             const commentsSection = document.createElement('div');
             commentsSection.innerHTML = '<h3>Detailed Comments</h3>';
-            for (const [category, comment] of Object.entries(analysis.detailed_comments)) {
-                const title = category.charAt(0).toUpperCase() + category.slice(1).replace('_', ' ');
+            for (const [key, comment] of Object.entries(analysis.detailed_comments)) {
+                const title = key.charAt(0).toUpperCase() + key.slice(1).replace('_', ' ');
                 commentsSection.innerHTML += `<p><strong>${title}:</strong> ${comment}</p>`;
             }
             analysisDiv.appendChild(commentsSection);
-    
+
             // Suggestions
             const suggestions = document.createElement('ol');
             suggestions.innerHTML = '<h3>Suggestions for Improvement</h3>';
@@ -298,12 +328,12 @@
                 suggestions.appendChild(li);
             });
             analysisDiv.appendChild(suggestions);
-    
+
             // Word Count Feedback
-            const wcFeedback = document.createElement('p');
-            wcFeedback.innerHTML = `<h3>Word Count Feedback</h3>${analysis.word_count_feedback}`;
+            const wcFeedback = document.createElement('div');
+            wcFeedback.innerHTML = `<h3>Word Count Feedback</h3><p>${analysis.word_count_feedback}</p>`;
             analysisDiv.appendChild(wcFeedback);
-    
+
             // Key Insights
             const insights = document.createElement('ul');
             insights.innerHTML = '<h3>Key Insights</h3>';
