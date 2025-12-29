@@ -7,8 +7,7 @@ app = Flask(__name__)
 
 # Use environment variable for security (recommended)
 # Or keep hard-coded for quick testing (remove in production!)
-client = genai.Client(api_key="AIzaSyDV8SjQIVLx6KtMwQjE4uCerp7gFBObX1s")
-# Better: client = genai.Client()  # and set $env:GEMINI_API_KEY in PowerShell
+client = genai.Client()  # and set $env:GEMINI_API_KEY in PowerShell
 
 # Configure Gemini API (set your API key as an environment variable: export GEMINI_API_KEY='your_api_key_here')
 
